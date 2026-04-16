@@ -4,6 +4,11 @@ server:
 spring:
   application:
     name: job-offer-service
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
 
   datasource:
     url: ${JOB_OFFER_DB_URL:jdbc:mysql://127.0.0.1:3306/jobofferdb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
@@ -52,6 +57,14 @@ app:
     from: ${JOB_APPLICATION_NOTIFICATION_FROM:ihebb9491@gmail.com}
     accepted:
       enabled: ${JOB_APPLICATION_ACCEPTED_NOTIFICATION_ENABLED:true}
+  rabbitmq:
+    exchange: ${APP_RABBITMQ_EXCHANGE:ybrainy.events}
+    partnership:
+      queue: ${APP_RABBITMQ_PARTNERSHIP_QUEUE:job-offer.partnership.events.queue}
+      routing-key: ${APP_RABBITMQ_PARTNERSHIP_ROUTING_KEY:partnership.event}
+    application:
+      queue: ${APP_RABBITMQ_APPLICATION_QUEUE:job-application.events.queue}
+      routing-key: ${APP_RABBITMQ_APPLICATION_ROUTING_KEY:job-application.event}
 
 gemini:
   api:

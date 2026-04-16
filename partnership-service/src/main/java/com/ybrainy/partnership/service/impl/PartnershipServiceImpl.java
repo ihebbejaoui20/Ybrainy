@@ -6,6 +6,7 @@ import com.ybrainy.partnership.dto.PartnershipResponse;
 import com.ybrainy.partnership.exception.BusinessException;
 import com.ybrainy.partnership.exception.ResourceNotFoundException;
 import com.ybrainy.partnership.mapper.PartnershipMapper;
+import com.ybrainy.partnership.messaging.PartnershipEventPublisher;
 import com.ybrainy.partnership.repository.PartnershipRepository;
 import com.ybrainy.partnership.service.PartnershipService;
 import org.springframework.data.domain.Page;
@@ -18,10 +19,15 @@ public class PartnershipServiceImpl implements PartnershipService {
 
   private final PartnershipRepository repository;
   private final PartnershipMapper mapper;
+  private final PartnershipEventPublisher eventPublisher;
 
-  public PartnershipServiceImpl(PartnershipRepository repository, PartnershipMapper mapper) {
+  public PartnershipServiceImpl(
+      PartnershipRepository repository,
+      PartnershipMapper mapper,
+      PartnershipEventPublisher eventPublisher) {
     this.repository = repository;
     this.mapper = mapper;
+    this.eventPublisher = eventPublisher;
   }
 
   @Override
@@ -32,6 +38,7 @@ public class PartnershipServiceImpl implements PartnershipService {
       throw new BusinessException("A partnership already exists with this email");
     }
     Partnership saved = repository.save(mapper.toEntity(request));
+    eventPublisher.publishCreated(saved);
     return mapper.toResponse(saved);
   }
 
@@ -44,7 +51,9 @@ public class PartnershipServiceImpl implements PartnershipService {
       throw new BusinessException("Another partnership already uses this email");
     }
     mapper.apply(entity, request);
-    return mapper.toResponse(repository.save(entity));
+    Partnership saved = repository.save(entity);
+    eventPublisher.publishUpdated(saved);
+    return mapper.toResponse(saved);
   }
 
   @Override
@@ -68,6 +77,7 @@ public class PartnershipServiceImpl implements PartnershipService {
   public void delete(String id) {
     Partnership entity = findOrThrow(id);
     repository.delete(entity);
+    eventPublisher.publishDeleted(entity);
   }
 
   @Override

@@ -8,9 +8,9 @@ import com.ybrainy.joboffer.entity.JobApplication;
 import com.ybrainy.joboffer.exception.BusinessException;
 import com.ybrainy.joboffer.exception.ResourceNotFoundException;
 import com.ybrainy.joboffer.mapper.JobApplicationMapper;
+import com.ybrainy.joboffer.messaging.JobApplicationEventPublisher;
 import com.ybrainy.joboffer.repository.JobApplicationRepository;
 import com.ybrainy.joboffer.repository.JobOfferRepository;
-import com.ybrainy.joboffer.service.JobApplicationNotificationService;
 import com.ybrainy.joboffer.service.JobApplicationService;
 import java.util.List;
 import org.slf4j.Logger;
@@ -26,26 +26,27 @@ public class JobApplicationServiceImpl implements JobApplicationService {
   private final JobApplicationRepository applicationRepository;
   private final JobOfferRepository offerRepository;
   private final JobApplicationMapper mapper;
-  private final JobApplicationNotificationService notificationService;
+  private final JobApplicationEventPublisher eventPublisher;
 
   public JobApplicationServiceImpl(
       JobApplicationRepository applicationRepository,
       JobOfferRepository offerRepository,
       JobApplicationMapper mapper,
-      JobApplicationNotificationService notificationService) {
+      JobApplicationEventPublisher eventPublisher) {
     this.applicationRepository = applicationRepository;
     this.offerRepository = offerRepository;
     this.mapper = mapper;
-    this.notificationService = notificationService;
+    this.eventPublisher = eventPublisher;
   }
 
   @Override
   @Transactional
   public JobApplicationResponse create(String offerId, JobApplicationRequest request) {
     String normalizedOfferId = offerId.trim();
-    if (!offerRepository.existsById(normalizedOfferId)) {
-      throw new ResourceNotFoundException("Job offer not found: " + normalizedOfferId);
-    }
+    var offer =
+        offerRepository
+            .findById(normalizedOfferId)
+            .orElseThrow(() -> new ResourceNotFoundException("Job offer not found: " + normalizedOfferId));
 
     String email = request.applicantEmail().trim().toLowerCase();
     if (applicationRepository.existsByOfferIdAndApplicantEmailIgnoreCase(normalizedOfferId, email)) {
@@ -53,6 +54,7 @@ public class JobApplicationServiceImpl implements JobApplicationService {
     }
 
     JobApplication saved = applicationRepository.save(mapper.toEntity(normalizedOfferId, request));
+    eventPublisher.publishCreated(saved, resolveOfferTitle(offer.getTitle()));
     return mapper.toResponse(saved);
   }
 
@@ -84,17 +86,13 @@ public class JobApplicationServiceImpl implements JobApplicationService {
     mapper.applyReview(app, request);
     JobApplication saved = applicationRepository.save(app);
 
-    if (previousStatus != ApplicationStatus.ACCEPTED && saved.getStatus() == ApplicationStatus.ACCEPTED) {
+    if (previousStatus != saved.getStatus()) {
       String offerTitle =
-          offerRepository
-              .findById(saved.getOfferId())
-              .map((offer) -> offer.getTitle() == null || offer.getTitle().isBlank() ? "Offre d'emploi" : offer.getTitle())
-              .orElse("Offre d'emploi");
-      boolean notificationSent = notificationService.notifyAccepted(saved, offerTitle);
-      if (!notificationSent) {
-        log.warn(
-            "Application {} moved to ACCEPTED but no candidate notification was sent. Check SMTP/app notifications configuration.",
-            saved.getId());
+          offerRepository.findById(saved.getOfferId()).map((offer) -> resolveOfferTitle(offer.getTitle())).orElse("Offre d'emploi");
+      eventPublisher.publishStatusChanged(saved, offerTitle);
+
+      if (saved.getStatus() == ApplicationStatus.ACCEPTED) {
+        log.info("Acceptance notification scheduled asynchronously for application {}", saved.getId());
       }
     }
 
@@ -109,5 +107,9 @@ public class JobApplicationServiceImpl implements JobApplicationService {
             .findById(applicationId.trim())
             .orElseThrow(() -> new ResourceNotFoundException("Job application not found: " + applicationId));
     applicationRepository.delete(app);
+  }
+
+  private String resolveOfferTitle(String offerTitle) {
+    return offerTitle == null || offerTitle.isBlank() ? "Offre d'emploi" : offerTitle;
   }
 }

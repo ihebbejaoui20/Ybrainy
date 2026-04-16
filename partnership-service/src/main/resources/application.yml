@@ -4,6 +4,11 @@ server:
 spring:
   application:
     name: partnership-service
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
   datasource:
     url: ${PARTNERSHIP_DB_URL:jdbc:mysql://127.0.0.1:3306/partnershipdb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -29,3 +34,10 @@ management:
     web:
       exposure:
         include: health,info
+
+app:
+  rabbitmq:
+    exchange: ${APP_RABBITMQ_EXCHANGE:ybrainy.events}
+    partnership:
+      queue: ${APP_RABBITMQ_PARTNERSHIP_QUEUE:partnership.events.queue}
+      routing-key: ${APP_RABBITMQ_PARTNERSHIP_ROUTING_KEY:partnership.event}
