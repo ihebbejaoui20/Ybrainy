@@ -1,0 +1,63 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: job-offer-service
+
+  datasource:
+    url: ${JOB_OFFER_DB_URL:jdbc:mysql://127.0.0.1:3306/jobofferdb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${JOB_OFFER_DB_USERNAME:root}
+    password: ${JOB_OFFER_DB_PASSWORD:}
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  mail:
+    host: ${JOB_MAIL_HOST:smtp.gmail.com}
+    port: ${JOB_MAIL_PORT:587}
+    username: ${JOB_MAIL_USERNAME:ihebb9491@gmail.com}
+    password: ${JOB_MAIL_PASSWORD:ipajuzsmkktmzwqj}
+    properties:
+      mail:
+        smtp:
+          auth: ${JOB_MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${JOB_MAIL_SMTP_STARTTLS:true}
+          connectiontimeout: ${JOB_MAIL_CONNECTION_TIMEOUT:5000}
+          timeout: ${JOB_MAIL_TIMEOUT:5000}
+          writetimeout: ${JOB_MAIL_WRITE_TIMEOUT:5000}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8770/eureka
+  instance:
+    prefer-ip-address: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+app:
+  notifications:
+    from: ${JOB_APPLICATION_NOTIFICATION_FROM:ihebb9491@gmail.com}
+    accepted:
+      enabled: ${JOB_APPLICATION_ACCEPTED_NOTIFICATION_ENABLED:true}
+
+gemini:
+  api:
+    key: ${GEMINI_API_KEY:AIzaSyB8cp7gO--5B6Af-es5VAT0Ho0AkE8kiuQ}
+    url: ${GEMINI_API_URL:https://generativelanguage.googleapis.com/v1beta/models}
+    model: ${GEMINI_API_MODEL:gemini-2.5-flash}
+    # Nano Banana models (ordre prioritaire): 2 -> Pro -> 2.5 Flash.
+    # Separateur: virgule.
+    image-models: ${GEMINI_API_IMAGE_MODELS:gemini-3.1-flash-image-preview,gemini-3-pro-image-preview,gemini-2.5-flash-image}
