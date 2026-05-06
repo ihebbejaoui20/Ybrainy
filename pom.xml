@@ -17,10 +17,14 @@
   <name>ybrainy-backend</name>
 
   <properties>
+  <sonar.skipEmptyModules>true</sonar.skipEmptyModules>
+      <sonar.exclusions>**/ybrainy-backend/**</sonar.exclusions>
+<sonar.projectBaseDir>${project.basedir}</sonar.projectBaseDir>
     <java.version>17</java.version>
     <spring-cloud.version>2023.0.4</spring-cloud.version>
     <springdoc.version>2.6.0</springdoc.version>
   </properties>
+  
 
   <modules>
     <module>discovery-server</module>
