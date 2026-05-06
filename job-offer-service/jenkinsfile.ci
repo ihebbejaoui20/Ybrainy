@@ -65,8 +65,7 @@ pipeline {
             steps {
                 dir("${env.SERVICE_DIR}") {
                     withSonarQubeEnv('SonarQube') {
-                        sh 'mvn sonar:sonar -Dsonar.projectKey=$SERVICE_NAME'
-                    }
+mvn -pl job-offer-service sonar:sonar -Dsonar.projectKey=job-offer-service                    }
                 }
             }
         }
