@@ -1,6 +1,11 @@
 pipeline {
     agent any
 
+    tools {
+        jdk 'JDK17'
+        maven 'Maven3'
+    }
+
     options {
         skipDefaultCheckout(true)
         timestamps()
@@ -10,10 +15,6 @@ pipeline {
     environment {
         SERVICE_NAME  = 'job-offer-service'
         SERVICE_DIR   = '.'
-        MVN_EXEC      = ''
-        USE_DOCKER_MAVEN = 'false'
-        MAVEN_DOCKER_IMAGE = 'maven:3.9.9-eclipse-temurin-17'
-        DOCKERFILE_PATH = 'Dockerfile'
         DOCKER_IMAGE  = 'ihebbe/job-offer-service'
         DOCKER_TAG    = "${BUILD_NUMBER}"
         SONAR_URL     = 'http://localhost:9000'
@@ -33,39 +34,13 @@ pipeline {
                     env.SERVICE_DIR = fileExists('job-offer-service/pom.xml') ? 'job-offer-service' : '.'
                     echo "Using service directory: ${env.SERVICE_DIR}"
                 }
-                dir("${env.SERVICE_DIR}") {
-                    script {
-                        if (fileExists('mvnw')) {
-                            sh 'chmod +x mvnw'
-                            env.MVN_EXEC = './mvnw'
-                            env.USE_DOCKER_MAVEN = 'false'
-                            echo 'Using Maven Wrapper (./mvnw).'
-                        } else if (sh(returnStatus: true, script: 'command -v mvn >/dev/null 2>&1') == 0) {
-                            env.MVN_EXEC = 'mvn'
-                            env.USE_DOCKER_MAVEN = 'false'
-                            echo 'Using system Maven (mvn).'
-                        } else if (sh(returnStatus: true, script: 'command -v docker >/dev/null 2>&1') == 0) {
-                            env.MVN_EXEC = 'mvn'
-                            env.USE_DOCKER_MAVEN = 'true'
-                            echo "Maven binary not found on agent. Falling back to Dockerized Maven image ${env.MAVEN_DOCKER_IMAGE}."
-                        } else {
-                            error('Neither Maven nor Maven Wrapper is available, and Docker is not available for fallback.')
-                        }
-                    }
-                }
             }
         }
 
         stage('Build') {
             steps {
                 dir("${env.SERVICE_DIR}") {
-                    script {
-                        if (env.USE_DOCKER_MAVEN == 'true') {
-                            sh 'docker run --rm -v "$PWD":/workspace -w /workspace ${MAVEN_DOCKER_IMAGE} ${MVN_EXEC} -B clean compile'
-                        } else {
-                            sh '${MVN_EXEC} -B clean compile'
-                        }
-                    }
+                    sh 'mvn -B clean compile'
                 }
             }
         }
@@ -73,64 +48,24 @@ pipeline {
         stage('Test') {
             steps {
                 dir("${env.SERVICE_DIR}") {
-                    script {
-                        if (env.USE_DOCKER_MAVEN == 'true') {
-                            sh 'docker run --rm -v "$PWD":/workspace -w /workspace ${MAVEN_DOCKER_IMAGE} ${MVN_EXEC} -B test'
-                        } else {
-                            sh '${MVN_EXEC} -B test'
-                        }
-                    }
-                }
-            }
-            post {
-                always {
-                    script {
-                        def reportPattern = env.SERVICE_DIR == '.'
-                            ? 'target/surefire-reports/*.xml'
-                            : "${env.SERVICE_DIR}/target/surefire-reports/*.xml"
-                        junit allowEmptyResults: true, testResults: reportPattern
-                    }
+                    sh 'mvn -B test'
                 }
             }
         }
 
-        stage('Package (Boot Jar)') {
+        stage('Package') {
             steps {
                 dir("${env.SERVICE_DIR}") {
-                    script {
-                        if (env.USE_DOCKER_MAVEN == 'true') {
-                            sh 'docker run --rm -v "$PWD":/workspace -w /workspace ${MAVEN_DOCKER_IMAGE} ${MVN_EXEC} -B -DskipTests package spring-boot:repackage'
-                        } else {
-                            sh '${MVN_EXEC} -B -DskipTests package spring-boot:repackage'
-                        }
-                    }
+                    sh 'mvn -B -DskipTests package'
                 }
             }
         }
 
-        stage('SonarQube Analysis') {
+        stage('SonarQube') {
             steps {
                 dir("${env.SERVICE_DIR}") {
                     withSonarQubeEnv('SonarQube') {
-                        script {
-                            if (env.USE_DOCKER_MAVEN == 'true') {
-                                sh '''
-docker run --rm \
-  -e SONAR_HOST_URL \
-  -e SONAR_AUTH_TOKEN \
-  -e SONAR_CONFIG_NAME \
-  -e SONAR_MAVEN_GOAL \
-  -e SONAR_EXTRA_PROPS \
-  -e SONARQUBE_SCANNER_PARAMS \
-  -v "$PWD":/workspace \
-  -w /workspace \
-  ${MAVEN_DOCKER_IMAGE} \
-  ${MVN_EXEC} -B sonar:sonar -Dsonar.projectKey=${SERVICE_NAME} -Dsonar.projectName=${SERVICE_NAME} -Dsonar.host.url=${SONAR_URL}
-'''
-                            } else {
-                                sh '${MVN_EXEC} -B sonar:sonar -Dsonar.projectKey=$SERVICE_NAME -Dsonar.projectName=$SERVICE_NAME -Dsonar.host.url=$SONAR_URL'
-                            }
-                        }
+                        sh 'mvn sonar:sonar -Dsonar.projectKey=$SERVICE_NAME'
                     }
                 }
             }
@@ -144,82 +79,44 @@ docker run --rm \
             }
         }
 
-        stage('Validate Dockerfile') {
-            steps {
-                dir("${env.SERVICE_DIR}") {
-                    script {
-                        if (fileExists('Dockerfile')) {
-                            env.DOCKERFILE_PATH = 'Dockerfile'
-                        } else if (fileExists('Dokerfile')) {
-                            env.DOCKERFILE_PATH = 'Dokerfile'
-                        } else {
-                            error('Dockerfile not found. Expected Dockerfile (or Dokerfile) in service directory.')
-                        }
-
-                        int dockerfileSize = sh(
-                            returnStdout: true,
-                            script: "wc -c < ${env.DOCKERFILE_PATH}"
-                        ).trim() as Integer
-
-                        if (dockerfileSize <= 0) {
-                            error("Dockerfile '${env.DOCKERFILE_PATH}' is empty. Please add valid Docker instructions.")
-                        }
-
-                        echo "Using Dockerfile: ${env.DOCKERFILE_PATH}"
-                    }
-                }
-            }
-        }
-
         stage('Docker Build') {
             steps {
                 dir("${env.SERVICE_DIR}") {
-                    sh 'docker build -f ${DOCKERFILE_PATH} -t ${DOCKER_IMAGE}:${DOCKER_TAG} .'
-                    sh 'docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest'
+                    script {
+                        def dockerfile = fileExists('Dockerfile') ? 'Dockerfile' : 'Dokerfile'
+                        sh """
+                        docker build -f ${dockerfile} \
+                        -t ${DOCKER_IMAGE}:${DOCKER_TAG} .
+                        docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest
+                        """
+                    }
                 }
             }
         }
 
         stage('Docker Push') {
             steps {
-                dir("${env.SERVICE_DIR}") {
-                    withCredentials([usernamePassword(
-                        credentialsId: 'dockerhub-credentials',
-                        usernameVariable: 'DOCKER_USER',
-                        passwordVariable: 'DOCKER_PASS'
-                    )]) {
-                        sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
-                        sh 'docker push ${DOCKER_IMAGE}:${DOCKER_TAG}'
-                        sh 'docker push ${DOCKER_IMAGE}:latest'
-                    }
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-credentials',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh """
+                    echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                    docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
+                    docker push ${DOCKER_IMAGE}:latest
+                    """
                 }
-            }
-        }
-
-        stage('Save Build Info For CD') {
-            steps {
-                script {
-                    writeFile file: 'job-offer-service-tag.txt', text: "${DOCKER_TAG}\n"
-                }
-                archiveArtifacts artifacts: 'job-offer-service-tag.txt', fingerprint: true
             }
         }
     }
 
     post {
         success {
-            echo 'CI job-offer-service succeeded.'
+            echo 'CI job-offer-service succeeded 🚀'
         }
         failure {
-            echo 'CI job-offer-service failed.'
-        }
-        always {
-            script {
-                def jarPattern = env.SERVICE_DIR == '.'
-                    ? 'target/*.jar'
-                    : "${env.SERVICE_DIR}/target/*.jar"
-                archiveArtifacts allowEmptyArchive: true, artifacts: jarPattern, fingerprint: true
-            }
+            echo 'CI job-offer-service failed ❌'
         }
     }
 }
