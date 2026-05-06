@@ -1,0 +1,166 @@
+pipeline {
+    agent any
+
+    options {
+        skipDefaultCheckout(true)
+        timestamps()
+        disableConcurrentBuilds()
+    }
+
+    environment {
+        SERVICE_NAME  = 'job-offer-service'
+        SERVICE_DIR   = '.'
+        DOCKERFILE_PATH = 'Dockerfile'
+        DOCKER_IMAGE  = 'ihebbe/job-offer-service'
+        DOCKER_TAG    = "${BUILD_NUMBER}"
+        SONAR_URL     = 'http://localhost:9000'
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Init') {
+            steps {
+                script {
+                    env.SERVICE_DIR = fileExists('job-offer-service/pom.xml') ? 'job-offer-service' : '.'
+                    echo "Using service directory: ${env.SERVICE_DIR}"
+                }
+            }
+        }
+
+        stage('Build') {
+            steps {
+                dir("${env.SERVICE_DIR}") {
+                    sh 'mvn -B clean compile'
+                }
+            }
+        }
+
+        stage('Test') {
+            steps {
+                dir("${env.SERVICE_DIR}") {
+                    sh 'mvn -B test'
+                }
+            }
+            post {
+                always {
+                    script {
+                        def reportPattern = env.SERVICE_DIR == '.'
+                            ? 'target/surefire-reports/*.xml'
+                            : "${env.SERVICE_DIR}/target/surefire-reports/*.xml"
+                        junit allowEmptyResults: true, testResults: reportPattern
+                    }
+                }
+            }
+        }
+
+        stage('Package (Boot Jar)') {
+            steps {
+                dir("${env.SERVICE_DIR}") {
+                    sh 'mvn -B -DskipTests package spring-boot:repackage'
+                }
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                dir("${env.SERVICE_DIR}") {
+                    withSonarQubeEnv('SonarQube') {
+                        sh 'mvn -B sonar:sonar -Dsonar.projectKey=$SERVICE_NAME -Dsonar.projectName=$SERVICE_NAME -Dsonar.host.url=$SONAR_URL'
+                    }
+                }
+            }
+        }
+
+        stage('Quality Gate') {
+            steps {
+                timeout(time: 10, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+
+        stage('Validate Dockerfile') {
+            steps {
+                dir("${env.SERVICE_DIR}") {
+                    script {
+                        if (fileExists('Dockerfile')) {
+                            env.DOCKERFILE_PATH = 'Dockerfile'
+                        } else if (fileExists('Dokerfile')) {
+                            env.DOCKERFILE_PATH = 'Dokerfile'
+                        } else {
+                            error('Dockerfile not found. Expected Dockerfile (or Dokerfile) in service directory.')
+                        }
+
+                        int dockerfileSize = sh(
+                            returnStdout: true,
+                            script: "wc -c < ${env.DOCKERFILE_PATH}"
+                        ).trim() as Integer
+
+                        if (dockerfileSize <= 0) {
+                            error("Dockerfile '${env.DOCKERFILE_PATH}' is empty. Please add valid Docker instructions.")
+                        }
+
+                        echo "Using Dockerfile: ${env.DOCKERFILE_PATH}"
+                    }
+                }
+            }
+        }
+
+        stage('Docker Build') {
+            steps {
+                dir("${env.SERVICE_DIR}") {
+                    sh 'docker build -f ${DOCKERFILE_PATH} -t ${DOCKER_IMAGE}:${DOCKER_TAG} .'
+                    sh 'docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest'
+                }
+            }
+        }
+
+        stage('Docker Push') {
+            steps {
+                dir("${env.SERVICE_DIR}") {
+                    withCredentials([usernamePassword(
+                        credentialsId: 'dockerhub-credentials',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )]) {
+                        sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
+                        sh 'docker push ${DOCKER_IMAGE}:${DOCKER_TAG}'
+                        sh 'docker push ${DOCKER_IMAGE}:latest'
+                    }
+                }
+            }
+        }
+
+        stage('Save Build Info For CD') {
+            steps {
+                script {
+                    writeFile file: 'job-offer-service-tag.txt', text: "${DOCKER_TAG}\n"
+                }
+                archiveArtifacts artifacts: 'job-offer-service-tag.txt', fingerprint: true
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'CI job-offer-service succeeded.'
+        }
+        failure {
+            echo 'CI job-offer-service failed.'
+        }
+        always {
+            script {
+                def jarPattern = env.SERVICE_DIR == '.'
+                    ? 'target/*.jar'
+                    : "${env.SERVICE_DIR}/target/*.jar"
+                archiveArtifacts allowEmptyArchive: true, artifacts: jarPattern, fingerprint: true
+            }
+        }
+    }
+}
