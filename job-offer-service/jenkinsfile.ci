@@ -61,10 +61,10 @@ pipeline {
             }
         }
 
-       stage('SonarQube') {
+      stage('SonarQube') {
     steps {
         withSonarQubeEnv('SonarQube') {
-            sh "mvn sonar:sonar -Dsonar.projectKey=job-offer-service"
+            sh "mvn -pl job-offer-service -am sonar:sonar -Dsonar.projectKey=job-offer-service"
         }
     }
 }
