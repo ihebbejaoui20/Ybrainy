@@ -61,14 +61,13 @@ pipeline {
             }
         }
 
-        stage('SonarQube') {
-            steps {
-                dir("${env.SERVICE_DIR}") {
-                    withSonarQubeEnv('SonarQube') {
-                     sh "mvn -pl job-offer-service sonar:sonar -Dsonar.projectKey=job-offer-service"                }
-            }
+       stage('SonarQube') {
+    steps {
+        withSonarQubeEnv('SonarQube') {
+            sh "mvn sonar:sonar -Dsonar.projectKey=job-offer-service"
         }
-        }
+    }
+}
 
         stage('Quality Gate') {
             steps {
