@@ -17,6 +17,7 @@
   <name>ybrainy-backend</name>
 
   <properties>
+  <sonar.skip>true</sonar.skip>
   <sonar.skipEmptyModules>true</sonar.skipEmptyModules>
       <sonar.exclusions>**/ybrainy-backend/**</sonar.exclusions>
 <sonar.projectBaseDir>${project.basedir}</sonar.projectBaseDir>

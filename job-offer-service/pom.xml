@@ -17,6 +17,7 @@
   <!-- SONARQUBE PROPERTIES  -->
   <!-- ===================== -->
   <properties>
+  <sonar.skip>false</sonar.skip>
     <sonar.projectKey>job-offer-service</sonar.projectKey>
     <sonar.projectName>job-offer-service</sonar.projectName>
     <sonar.host.url>http://localhost:9000</sonar.host.url>

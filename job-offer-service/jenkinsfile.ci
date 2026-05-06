@@ -63,14 +63,9 @@ pipeline {
 
      stage('SonarQube') {
     steps {
-        dir("${env.SERVICE_DIR}") {
+        dir('job-offer-service') {
             withSonarQubeEnv('SonarQube') {
-                sh """
-                mvn clean verify sonar:sonar \
-                -Dsonar.projectKey=job-offer-service \
-                -Dsonar.projectName=job-offer-service \
-                -Dsonar.modules=
-                """
+                sh 'mvn clean verify sonar:sonar'
             }
         }
     }
