@@ -10,6 +10,9 @@ pipeline {
     environment {
         SERVICE_NAME  = 'job-offer-service'
         SERVICE_DIR   = '.'
+        MVN_EXEC      = ''
+        USE_DOCKER_MAVEN = 'false'
+        MAVEN_DOCKER_IMAGE = 'maven:3.9.9-eclipse-temurin-17'
         DOCKERFILE_PATH = 'Dockerfile'
         DOCKER_IMAGE  = 'ihebbe/job-offer-service'
         DOCKER_TAG    = "${BUILD_NUMBER}"
@@ -30,13 +33,39 @@ pipeline {
                     env.SERVICE_DIR = fileExists('job-offer-service/pom.xml') ? 'job-offer-service' : '.'
                     echo "Using service directory: ${env.SERVICE_DIR}"
                 }
+                dir("${env.SERVICE_DIR}") {
+                    script {
+                        if (fileExists('mvnw')) {
+                            sh 'chmod +x mvnw'
+                            env.MVN_EXEC = './mvnw'
+                            env.USE_DOCKER_MAVEN = 'false'
+                            echo 'Using Maven Wrapper (./mvnw).'
+                        } else if (sh(returnStatus: true, script: 'command -v mvn >/dev/null 2>&1') == 0) {
+                            env.MVN_EXEC = 'mvn'
+                            env.USE_DOCKER_MAVEN = 'false'
+                            echo 'Using system Maven (mvn).'
+                        } else if (sh(returnStatus: true, script: 'command -v docker >/dev/null 2>&1') == 0) {
+                            env.MVN_EXEC = 'mvn'
+                            env.USE_DOCKER_MAVEN = 'true'
+                            echo "Maven binary not found on agent. Falling back to Dockerized Maven image ${env.MAVEN_DOCKER_IMAGE}."
+                        } else {
+                            error('Neither Maven nor Maven Wrapper is available, and Docker is not available for fallback.')
+                        }
+                    }
+                }
             }
         }
 
         stage('Build') {
             steps {
                 dir("${env.SERVICE_DIR}") {
-                    sh 'mvn -B clean compile'
+                    script {
+                        if (env.USE_DOCKER_MAVEN == 'true') {
+                            sh 'docker run --rm -v "$PWD":/workspace -w /workspace ${MAVEN_DOCKER_IMAGE} ${MVN_EXEC} -B clean compile'
+                        } else {
+                            sh '${MVN_EXEC} -B clean compile'
+                        }
+                    }
                 }
             }
         }
@@ -44,7 +73,13 @@ pipeline {
         stage('Test') {
             steps {
                 dir("${env.SERVICE_DIR}") {
-                    sh 'mvn -B test'
+                    script {
+                        if (env.USE_DOCKER_MAVEN == 'true') {
+                            sh 'docker run --rm -v "$PWD":/workspace -w /workspace ${MAVEN_DOCKER_IMAGE} ${MVN_EXEC} -B test'
+                        } else {
+                            sh '${MVN_EXEC} -B test'
+                        }
+                    }
                 }
             }
             post {
@@ -62,7 +97,13 @@ pipeline {
         stage('Package (Boot Jar)') {
             steps {
                 dir("${env.SERVICE_DIR}") {
-                    sh 'mvn -B -DskipTests package spring-boot:repackage'
+                    script {
+                        if (env.USE_DOCKER_MAVEN == 'true') {
+                            sh 'docker run --rm -v "$PWD":/workspace -w /workspace ${MAVEN_DOCKER_IMAGE} ${MVN_EXEC} -B -DskipTests package spring-boot:repackage'
+                        } else {
+                            sh '${MVN_EXEC} -B -DskipTests package spring-boot:repackage'
+                        }
+                    }
                 }
             }
         }
@@ -71,7 +112,25 @@ pipeline {
             steps {
                 dir("${env.SERVICE_DIR}") {
                     withSonarQubeEnv('SonarQube') {
-                        sh 'mvn -B sonar:sonar -Dsonar.projectKey=$SERVICE_NAME -Dsonar.projectName=$SERVICE_NAME -Dsonar.host.url=$SONAR_URL'
+                        script {
+                            if (env.USE_DOCKER_MAVEN == 'true') {
+                                sh '''
+docker run --rm \
+  -e SONAR_HOST_URL \
+  -e SONAR_AUTH_TOKEN \
+  -e SONAR_CONFIG_NAME \
+  -e SONAR_MAVEN_GOAL \
+  -e SONAR_EXTRA_PROPS \
+  -e SONARQUBE_SCANNER_PARAMS \
+  -v "$PWD":/workspace \
+  -w /workspace \
+  ${MAVEN_DOCKER_IMAGE} \
+  ${MVN_EXEC} -B sonar:sonar -Dsonar.projectKey=${SERVICE_NAME} -Dsonar.projectName=${SERVICE_NAME} -Dsonar.host.url=${SONAR_URL}
+'''
+                            } else {
+                                sh '${MVN_EXEC} -B sonar:sonar -Dsonar.projectKey=$SERVICE_NAME -Dsonar.projectName=$SERVICE_NAME -Dsonar.host.url=$SONAR_URL'
+                            }
+                        }
                     }
                 }
             }
