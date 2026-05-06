@@ -18,6 +18,8 @@ public record JobOfferResponse(
     OfferStatus status,
     LocalDate deadline,
     String partnershipId,
+    String partnershipName,
+    String partnershipEmail,
     Instant createdAt,
     Instant updatedAt) {
 }

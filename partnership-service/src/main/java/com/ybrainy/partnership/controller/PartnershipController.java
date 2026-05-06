@@ -1,10 +1,13 @@
 package com.ybrainy.partnership.controller;
 
+import com.ybrainy.partnership.client.JobOfferClient;
 import com.ybrainy.partnership.dto.ExistsResponse;
+import com.ybrainy.partnership.dto.JobOfferSummary;
 import com.ybrainy.partnership.dto.PartnershipRequest;
 import com.ybrainy.partnership.dto.PartnershipResponse;
 import com.ybrainy.partnership.service.PartnershipService;
 import jakarta.validation.Valid;
+import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -26,9 +29,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class PartnershipController {
 
   private final PartnershipService service;
+  private final JobOfferClient jobOfferClient;
 
-  public PartnershipController(PartnershipService service) {
+  public PartnershipController(PartnershipService service, JobOfferClient jobOfferClient) {
     this.service = service;
+    this.jobOfferClient = jobOfferClient;
   }
 
   @PostMapping
@@ -45,6 +50,14 @@ public class PartnershipController {
   @GetMapping("/{id}")
   public PartnershipResponse getById(@PathVariable String id) {
     return service.getById(id);
+  }
+
+  @GetMapping("/{id}/with-offers")
+  public PartnershipWithOffersResponse getByIdWithOffers(@PathVariable String id) {
+    PartnershipResponse partnership = service.getById(id);
+    List<JobOfferSummary> offers = jobOfferClient.findByPartnership(id, 0, 50);
+    int totalOffers = offers.size();
+    return new PartnershipWithOffersResponse(partnership, offers, totalOffers);
   }
 
   @GetMapping
@@ -68,5 +81,11 @@ public class PartnershipController {
   @GetMapping("/{id}/exists")
   public ExistsResponse exists(@PathVariable String id) {
     return new ExistsResponse(service.existsById(id));
+  }
+
+  public record PartnershipWithOffersResponse(
+      PartnershipResponse partnership,
+      List<JobOfferSummary> offers,
+      int totalOffers) {
   }
 }

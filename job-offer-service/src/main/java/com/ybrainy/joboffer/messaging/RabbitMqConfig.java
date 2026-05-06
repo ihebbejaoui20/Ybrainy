@@ -30,6 +30,11 @@ public class RabbitMqConfig {
   }
 
   @Bean
+  Queue jobApplicationAnalyticsQueue(@Value("${app.rabbitmq.application.analytics-queue}") String queueName) {
+    return new Queue(queueName, true);
+  }
+
+  @Bean
   Binding partnershipBinding(
       Queue partnershipEventsQueue,
       TopicExchange appExchange,
@@ -43,6 +48,14 @@ public class RabbitMqConfig {
       TopicExchange appExchange,
       @Value("${app.rabbitmq.application.routing-key}") String routingKey) {
     return BindingBuilder.bind(jobApplicationEventsQueue).to(appExchange).with(routingKey);
+  }
+
+  @Bean
+  Binding jobApplicationAnalyticsBinding(
+      Queue jobApplicationAnalyticsQueue,
+      TopicExchange appExchange,
+      @Value("${app.rabbitmq.application.routing-key}") String routingKey) {
+    return BindingBuilder.bind(jobApplicationAnalyticsQueue).to(appExchange).with(routingKey);
   }
 
   @Bean

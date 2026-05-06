@@ -60,7 +60,7 @@ class JobOfferServiceImplTest {
     when(partnershipClient.exists("partner-1")).thenReturn(new ExistsResponse(true));
     when(mapper.toEntity(request)).thenReturn(entity);
     when(repository.save(entity)).thenReturn(entity);
-    when(mapper.toResponse(entity)).thenReturn(response);
+    when(mapper.toResponse(eq(entity), any(), any())).thenReturn(response);
 
     JobOfferResponse result = service.create(request);
 
@@ -68,7 +68,7 @@ class JobOfferServiceImplTest {
     verify(partnershipClient).exists("partner-1");
     verify(mapper).toEntity(request);
     verify(repository).save(entity);
-    verify(mapper).toResponse(entity);
+    verify(mapper).toResponse(eq(entity), any(), any());
   }
 
   @Test
@@ -130,7 +130,7 @@ class JobOfferServiceImplTest {
 
     when(repository.findByTitleContainingIgnoreCase("java", pageable))
         .thenReturn(new PageImpl<>(List.of(entity)));
-    when(mapper.toResponse(entity)).thenReturn(response);
+    when(mapper.toResponse(eq(entity), any(), any())).thenReturn(response);
 
     Page<JobOfferResponse> page = service.getAll(null, null, "  java  ", pageable);
 
@@ -179,6 +179,8 @@ class JobOfferServiceImplTest {
         OfferStatus.OPEN,
         LocalDate.now().plusDays(5),
         "partner-1",
+        "Partner Name",
+        "partner@example.com",
         Instant.now(),
         Instant.now());
   }

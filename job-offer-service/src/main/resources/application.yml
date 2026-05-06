@@ -52,6 +52,14 @@ management:
       exposure:
         include: health,info
 
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+
 app:
   notifications:
     from: ${JOB_APPLICATION_NOTIFICATION_FROM:ihebb9491@gmail.com}
@@ -65,6 +73,7 @@ app:
     application:
       queue: ${APP_RABBITMQ_APPLICATION_QUEUE:job-application.events.queue}
       routing-key: ${APP_RABBITMQ_APPLICATION_ROUTING_KEY:job-application.event}
+      analytics-queue: ${APP_RABBITMQ_APPLICATION_ANALYTICS_QUEUE:job-application.analytics.queue}
 
 gemini:
   api:

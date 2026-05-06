@@ -28,6 +28,10 @@ public class JobOfferMapper {
   }
 
   public JobOfferResponse toResponse(JobOffer offer) {
+    return toResponse(offer, null, null);
+  }
+
+  public JobOfferResponse toResponse(JobOffer offer, String partnershipName, String partnershipEmail) {
     return new JobOfferResponse(
         offer.getId(),
         offer.getTitle(),
@@ -40,6 +44,8 @@ public class JobOfferMapper {
         offer.getStatus(),
         offer.getDeadline(),
         offer.getPartnershipId(),
+        partnershipName,
+        partnershipEmail,
         offer.getCreatedAt(),
         offer.getUpdatedAt());
   }

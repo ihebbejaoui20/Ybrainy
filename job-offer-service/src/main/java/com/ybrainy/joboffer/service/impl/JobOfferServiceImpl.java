@@ -1,10 +1,11 @@
 package com.ybrainy.joboffer.service.impl;
 
 import com.ybrainy.joboffer.client.PartnershipClient;
-import com.ybrainy.joboffer.entity.JobOffer;
-import com.ybrainy.joboffer.entity.OfferStatus;
 import com.ybrainy.joboffer.dto.JobOfferRequest;
 import com.ybrainy.joboffer.dto.JobOfferResponse;
+import com.ybrainy.joboffer.dto.PartnershipSummary;
+import com.ybrainy.joboffer.entity.JobOffer;
+import com.ybrainy.joboffer.entity.OfferStatus;
 import com.ybrainy.joboffer.exception.BusinessException;
 import com.ybrainy.joboffer.exception.ResourceNotFoundException;
 import com.ybrainy.joboffer.mapper.JobOfferMapper;
@@ -34,7 +35,7 @@ public class JobOfferServiceImpl implements JobOfferService {
     validatePartnership(request.partnershipId());
     validateSalaryRange(request);
     JobOffer saved = repository.save(mapper.toEntity(request));
-    return mapper.toResponse(saved);
+    return toResponseWithPartnership(saved);
   }
 
   @Override
@@ -44,13 +45,14 @@ public class JobOfferServiceImpl implements JobOfferService {
     validateSalaryRange(request);
     JobOffer entity = findOrThrow(id);
     mapper.apply(entity, request);
-    return mapper.toResponse(repository.save(entity));
+    JobOffer saved = repository.save(entity);
+    return toResponseWithPartnership(saved);
   }
 
   @Override
   @Transactional(readOnly = true)
   public JobOfferResponse getById(String id) {
-    return mapper.toResponse(findOrThrow(id));
+    return toResponseWithPartnership(findOrThrow(id));
   }
 
   @Override
@@ -66,7 +68,7 @@ public class JobOfferServiceImpl implements JobOfferService {
     } else {
       page = repository.findAll(pageable);
     }
-    return page.map(mapper::toResponse);
+    return page.map(this::toResponseWithPartnership);
   }
 
   @Override
@@ -96,5 +98,20 @@ public class JobOfferServiceImpl implements JobOfferService {
     if (request.salaryMin() != null && request.salaryMax() != null && request.salaryMin().compareTo(request.salaryMax()) > 0) {
       throw new BusinessException("salaryMin cannot be greater than salaryMax");
     }
+  }
+
+  private JobOfferResponse toResponseWithPartnership(JobOffer offer) {
+    String name = null;
+    String email = null;
+    try {
+      PartnershipSummary p = partnershipClient.getById(offer.getPartnershipId());
+      if (p != null) {
+        name = p.name();
+        email = p.email();
+      }
+    } catch (Exception ignored) {
+      // Fail soft: keep core offer data even if partnership-service is unavailable.
+    }
+    return mapper.toResponse(offer, name, email);
   }
 }
