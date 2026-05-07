@@ -1,11 +1,7 @@
-FROM eclipse-temurin:17-jre
+FROM eclipse-temurin:21
 
-WORKDIR /app
+EXPOSE 8080
 
-# Jenkins package stage creates the runnable Spring Boot jar in target/
-ARG JAR_FILE=target/job-offer-service-*.jar
-COPY ${JAR_FILE} app.jar
+COPY target/*.jar app.jar
 
-EXPOSE 8082
-
-ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+ENTRYPOINT ["java","-jar","app.jar"]
