@@ -72,22 +72,16 @@ pipeline {
         }
 
         // ✅ SOLUTION 3 : Docker Pipeline Plugin (pas besoin du binaire docker)
-        stage('Docker Build') {
-            steps {
-                dir("${env.SERVICE_DIR}") {
-                    script {
-                        // Utilisation du plugin Docker Pipeline au lieu de sh 'docker build...'
-                        def app = docker.build("${DOCKER_IMAGE}:${DOCKER_TAG}")
-
-                        // Tag supplémentaire :latest
-                        app.tag("latest")
-
-                        // On stocke l'image pour la réutiliser dans le stage Push
-                        env.DOCKER_BUILT = 'true'
-                    }
-                }
+       stage('Docker Build') {
+    steps {
+        dir("${env.SERVICE_DIR}") {
+            script {
+                def app = docker.build("${DOCKER_IMAGE}:${DOCKER_TAG}")
+                app.tag("latest")
             }
         }
+    }
+}
 
         stage('Docker Push') {
             steps {
