@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: partnership-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: partnership-service
+  template:
+    metadata:
+      labels:
+        app: partnership-service
+    spec:
+      containers:
+        - name: partnership-service
+          image: ihebbe/partnership-service:latest
+          ports:
+            - containerPort: 8080

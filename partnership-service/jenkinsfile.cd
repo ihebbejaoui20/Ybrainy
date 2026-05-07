@@ -1,0 +1,39 @@
+pipeline {
+    agent any
+
+    environment {
+        SERVICE_DIR = 'partnership-service'
+        IMAGE = 'ihebbe/partnership-service'
+        TAG = "${BUILD_NUMBER}"
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Deploy to Minikube') {
+            steps {
+                dir("${SERVICE_DIR}") {
+                    sh """
+                        kubectl apply -f k8s/
+                        kubectl set image deployment/partnership-service \
+                        partnership-service=${IMAGE}:${TAG}
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "CD partnership-service réussi 🚀"
+        }
+        failure {
+            echo "CD partnership-service échoué ❌"
+        }
+    }
+}
