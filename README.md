@@ -60,4 +60,4 @@ Payload example:
 - Validation Bean Validation (javax/jakarta)
 - Gestion d'erreurs centralisee
 - Decouverte service-to-service via Eureka
-- Appel inter-service depuis `job-offer-service` vers `partnership-service` avec OpenFeign
+- Appel inter-service depuis `job-offer-service` vers `partnership-service` avec OpenFeign..

@@ -43,5 +43,12 @@ pipeline {
         }
     }
 
-   
+    post {
+        success {
+            echo "CD partnership-service réussi 🚀"
+        }
+        failure {
+            echo "CD partnership-service échoué ❌"
+        }
+    }
 }
