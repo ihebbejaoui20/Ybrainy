@@ -1,0 +1,101 @@
+pipeline {
+    agent any
+
+    tools {
+        jdk 'JDK21'
+        maven 'Maven3'
+    }
+
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+        skipDefaultCheckout(true)
+    }
+
+    environment {
+        SERVICE_NAME = 'partnership-service'
+        SERVICE_DIR  = 'partnership-service'
+
+        DOCKER_IMAGE = 'ihebbe/partnership-service'
+        DOCKER_TAG   = "${BUILD_NUMBER}"
+
+        SONARQUBE_SERVER = 'SonarQube'
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Build') {
+            steps {
+                dir("${SERVICE_DIR}") {
+                    sh 'mvn -B clean compile'
+                }
+            }
+        }
+
+        stage('Test') {
+            steps {
+                dir("${SERVICE_DIR}") {
+                    sh 'mvn -B test'
+                }
+            }
+        }
+
+        stage('Package') {
+            steps {
+                dir("${SERVICE_DIR}") {
+                    sh 'mvn -B -DskipTests package'
+                }
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                dir("${SERVICE_DIR}") {
+                    withSonarQubeEnv("${SONARQUBE_SERVER}") {
+                        sh 'mvn clean verify sonar:sonar'
+                    }
+                }
+            }
+        }
+
+        stage('Docker Build') {
+            steps {
+                dir("${SERVICE_DIR}") {
+                    script {
+                        def app = docker.build("${DOCKER_IMAGE}:${DOCKER_TAG}")
+                        app.tag("latest")
+                    }
+                }
+            }
+        }
+
+        stage('Docker Push') {
+            steps {
+                script {
+                    docker.withRegistry('https://registry.hub.docker.com', 'dockerhub-credentials') {
+
+                        def app = docker.image("${DOCKER_IMAGE}:${DOCKER_TAG}")
+
+                        app.push()
+                        app.push('latest')
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "CI ${SERVICE_NAME} SUCCESS ✅"
+        }
+        failure {
+            echo "CI ${SERVICE_NAME} FAILED ❌"
+        }
+    }
+}
