@@ -5,6 +5,9 @@ pipeline {
         SERVICE_DIR = 'partnership-service'
         IMAGE = 'ihebbe/partnership-service'
         TAG = "${BUILD_NUMBER}"
+
+        // IMPORTANT : Jenkins doit pointer vers kubeconfig
+        KUBECONFIG = "/var/jenkins_home/.kube/config"
     }
 
     stages {
@@ -15,13 +18,25 @@ pipeline {
             }
         }
 
+        stage('Check tools') {
+            steps {
+                sh """
+                    kubectl version --client
+                    kubectl get nodes
+                """
+            }
+        }
+
         stage('Deploy to Minikube') {
             steps {
                 dir("${SERVICE_DIR}") {
                     sh """
                         kubectl apply -f k8s/
+
                         kubectl set image deployment/partnership-service \
                         partnership-service=${IMAGE}:${TAG}
+
+                        kubectl rollout status deployment/partnership-service
                     """
                 }
             }
