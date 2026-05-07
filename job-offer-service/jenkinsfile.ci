@@ -74,7 +74,7 @@ pipeline {
         // ✅ SOLUTION 3 : Docker Pipeline Plugin (pas besoin du binaire docker)
        stage('Docker Build') {
     steps {
-        dir("${env.SERVICE_DIR}") {
+        dir("job-offer-service") {
             script {
                 def app = docker.build("${DOCKER_IMAGE}:${DOCKER_TAG}")
                 app.tag("latest")
